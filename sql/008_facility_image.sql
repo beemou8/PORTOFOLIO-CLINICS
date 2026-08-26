@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE site_facilities
+  ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+COMMIT;

@@ -1,0 +1,43 @@
+{
+  "name": "bim-clinics-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/dev.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "tsx watch src/app.ts",
+    "dev:web": "npm --prefix web run dev",
+    "build": "npm run build:api && npm run build:web",
+    "build:api": "tsc",
+    "build:web": "npm --prefix web run build",
+    "start:api": "node dist/app.js",
+    "create-admin": "tsx src/scripts/createAdmin.ts",
+    "migrate": "node scripts/migrate.mjs",
+    "postinstall": "npm --prefix web install",
+    "setup": "npm run migrate && npm run create-admin",
+    "check": "npm run build"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.16.3",
+    "qrcode": "^1.5.4",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.3.0",
+    "@types/pg": "^8.15.5",
+    "@types/qrcode": "^1.5.5",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

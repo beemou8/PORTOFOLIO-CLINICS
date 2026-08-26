@@ -1,0 +1,12 @@
+import { FormEvent, useEffect, useState } from 'react';
+import { api, Branch, getUser } from '../lib/api';
+
+export default function Finance(){
+ const user=getUser();const isAdmin=user?.roles.includes('ADMIN')??false;
+ const today=new Date().toISOString().slice(0,10);
+ const [from,setFrom]=useState(today.slice(0,8)+'01'),[to,setTo]=useState(today),[data,setData]=useState<any>(null),[msg,setMsg]=useState('');
+ const [branches,setBranches]=useState<Branch[]>([]),[branchId,setBranchId]=useState(isAdmin?'':String(user?.branchId??''));
+ useEffect(()=>{if(isAdmin)void api<Branch[]>('/branches').then(setBranches).catch(()=>{})},[]);
+ async function load(e?:FormEvent){e?.preventDefault();try{const branch=branchId?`&branchId=${branchId}`:'';setData(await api(`/finance/pnl?from=${from}&to=${to}${branch}`));setMsg('');}catch(e){setMsg(e instanceof Error?e.message:'Gagal');}}
+ return <><header className="page-head"><div><small>FINANCE</small><h1>Profit & Loss</h1><p>{isAdmin?'ADMIN dapat melihat gabungan seluruh cabang atau satu cabang.':'Laporan otomatis dibatasi ke '+(user?.branchName||'cabang akun')+'.'}</p></div></header>{msg&&<div className="alert">{msg}</div>}<section className="panel"><form className="filter" onSubmit={load}><label>Dari<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>Sampai<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>{isAdmin&&<label>Cabang<select value={branchId} onChange={e=>setBranchId(e.target.value)}><option value="">Semua Cabang</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>}<button className="primary">Hitung P&L</button></form></section>{data&&<section className="stats finance"><div className="stat"><span>Revenue</span><b>Rp {Number(data.revenue).toLocaleString('id-ID')}</b></div><div className="stat"><span>COGS / HPP</span><b>Rp {Number(data.cogs).toLocaleString('id-ID')}</b></div><div className="stat"><span>Gross Profit</span><b>Rp {Number(data.gross_profit).toLocaleString('id-ID')}</b></div><div className="stat"><span>Operating Expense</span><b>Rp {Number(data.operating_expenses).toLocaleString('id-ID')}</b></div><div className="stat"><span>Payroll</span><b>Rp {Number(data.payroll_expense).toLocaleString('id-ID')}</b></div><div className="stat emphasis"><span>Net Profit</span><b>Rp {Number(data.net_profit).toLocaleString('id-ID')}</b></div></section>}</>
+}
