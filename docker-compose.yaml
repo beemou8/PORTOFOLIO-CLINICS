@@ -1,0 +1,26 @@
+services:
+  bim-clinics:
+    build: .
+    container_name: bim-clinics
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    volumes:
+      - ./uploads:/app/uploads
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bim-clinics.rule=Host(`clinics.bimoporto.my.id`)"
+      - "traefik.http.routers.bim-clinics.entrypoints=websecure"
+      - "traefik.http.routers.bim-clinics.tls=true"
+      - "traefik.http.routers.bim-clinics.tls.certresolver=letsencrypt"
+      - "traefik.http.services.bim-clinics-service.loadbalancer.server.port=3000"
+
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true
