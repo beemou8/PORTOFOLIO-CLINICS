@@ -116,6 +116,7 @@ const documentSchema = z.object({
   documentType: z.enum(['SICK_LETTER', 'REFERRAL', 'MEDICAL_CERTIFICATE', 'OTHER']),
   title: z.string().min(1),
   content: z.string().min(1),
+  diagnosis: z.string().trim().min(1),
   restStartDate: z.string().optional().nullable(),
   restEndDate: z.string().optional().nullable(),
 });
@@ -134,6 +135,18 @@ visitsRouter.post('/:visitId/documents', allowRoles('DOCTOR'), async (req, res) 
   if (visit.rows[0].doctor_id && visit.rows[0].doctor_id !== doctor.rows[0].id) {
     return res.status(403).json({ message: 'Pasien ini terdaftar ke dokter lain.' });
   }
+
+  // Diagnosis pada surat juga menjadi diagnosis resmi untuk kunjungan ini.
+  // Upsert hanya mengubah diagnosis sehingga catatan/tindakan yang sudah ada tidak hilang.
+  await pool.query(
+    `INSERT INTO medical_records(visit_id, doctor_id, diagnosis)
+     VALUES ($1,$2,$3)
+     ON CONFLICT (visit_id) DO UPDATE SET
+       doctor_id = EXCLUDED.doctor_id,
+       diagnosis = EXCLUDED.diagnosis,
+       updated_at = NOW()`,
+    [visitId, doctor.rows[0].id, parsed.data.diagnosis]
+  );
 
   const q = await pool.query(
     `INSERT INTO medical_documents(visit_id, doctor_id, document_type, title, content, rest_start_date, rest_end_date, status, destination)

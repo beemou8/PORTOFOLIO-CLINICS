@@ -10,12 +10,13 @@ adminRouter.get('/documents', async (req, res) => {
   const status = String(req.query.status ?? 'WAITING_ADMIN');
   const q = await pool.query(
     `SELECT md.*, p.full_name AS patient_name, e.full_name AS doctor_name,
-            v.registration_no, v.visit_date
+            v.registration_no, v.visit_date, mr.diagnosis
      FROM medical_documents md
      JOIN visits v ON v.id = md.visit_id
      JOIN patients p ON p.id = v.patient_id
      JOIN doctor_profiles dp ON dp.id = md.doctor_id
      JOIN employees e ON e.id = dp.employee_id
+     LEFT JOIN medical_records mr ON mr.visit_id = md.visit_id
      WHERE md.status = $1
      ORDER BY md.created_at`,
     [status]
@@ -45,13 +46,14 @@ adminRouter.get('/documents/:id/print-data', async (req, res) => {
   const id = Number(req.params.id);
   const q = await pool.query(
     `SELECT md.*, p.full_name AS patient_name, p.medical_record_no,
-            e.full_name AS doctor_name, dp.specialization, dp.sip_number,
+            e.full_name AS doctor_name, dp.specialization, dp.sip_number, mr.diagnosis,
             v.registration_no, v.visit_date, b.name AS branch_name, b.address AS branch_address, b.phone AS branch_phone
      FROM medical_documents md
      JOIN visits v ON v.id = md.visit_id
      JOIN patients p ON p.id = v.patient_id
      JOIN doctor_profiles dp ON dp.id = md.doctor_id
      JOIN employees e ON e.id = dp.employee_id
+     LEFT JOIN medical_records mr ON mr.visit_id = md.visit_id
      LEFT JOIN branches b ON b.id = v.branch_id
      WHERE md.id = $1`,
     [id]

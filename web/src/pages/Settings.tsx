@@ -29,8 +29,7 @@ const blank: SiteSettings = {
 };
 
 const blankFacility = { title: '', description: '', sortOrder: 0 };
-
-type SectionKey = 'hero' | 'about' | 'contact' | null;
+type SectionKey = 'hero' | 'about' | 'contact' | 'facilities' | null;
 
 export default function Settings() {
   const [saved, setSaved] = useState<SiteSettings>(blank);
@@ -41,6 +40,7 @@ export default function Settings() {
   const [openSection, setOpenSection] = useState<SectionKey>(null);
 
   const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [facilitiesLoaded, setFacilitiesLoaded] = useState(false);
   const [newFacility, setNewFacility] = useState(blankFacility);
   const [newFacilityImage, setNewFacilityImage] = useState<File | null>(null);
   const [showAddFacility, setShowAddFacility] = useState(false);
@@ -48,14 +48,24 @@ export default function Settings() {
   const [uploadingFacilityId, setUploadingFacilityId] = useState<number | 'new' | null>(null);
   const [fMsg, setFMsg] = useState('');
 
-  const load = () => api<SiteSettings>('/settings').then((d) => { setSaved({ ...blank, ...d }); setForm({ ...blank, ...d }); }).catch((e) => setMsg(e.message));
-  const loadFacilities = () => api<Facility[]>('/settings/facilities').then(setFacilities).catch((e) => setFMsg(e.message));
-  useEffect(() => { void load(); void loadFacilities(); }, []);
+  const load = () => api<SiteSettings>('/settings')
+    .then((d) => { setSaved({ ...blank, ...d }); setForm({ ...blank, ...d }); })
+    .catch((e) => setMsg(e.message));
 
-  function toggleSection(key: SectionKey) {
+  const loadFacilities = () => api<Facility[]>('/settings/facilities')
+    .then((items) => { setFacilities(items); setFacilitiesLoaded(true); })
+    .catch((e) => { setFMsg(e.message); setFacilitiesLoaded(true); });
+
+  useEffect(() => { void load(); }, []);
+
+  function chooseSection(key: Exclude<SectionKey, null>) {
     setMsg('');
-    setForm(saved); // buang perubahan yang belum disimpan saat pindah/tutup section
-    setOpenSection((cur) => (cur === key ? null : key));
+    setFMsg('');
+    setForm(saved);
+    setEditingFacilityId(null);
+    setShowAddFacility(false);
+    setOpenSection((cur) => cur === key ? null : key);
+    if (key === 'facilities' && !facilitiesLoaded) void loadFacilities();
   }
 
   async function submit(e: FormEvent) {
@@ -79,7 +89,6 @@ export default function Settings() {
       setSaved({ ...blank, ...updated });
       setForm({ ...blank, ...updated });
       setMsg('Perubahan berhasil disimpan.');
-      setOpenSection(null);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'Gagal menyimpan pengaturan');
     } finally {
@@ -106,8 +115,7 @@ export default function Settings() {
     try {
       const payload = await imagePayload(file);
       const updated = await api<SiteSettings>('/settings/hero-image', {
-        method: 'POST',
-        body: JSON.stringify(payload),
+        method: 'POST', body: JSON.stringify(payload),
       });
       setSaved((s) => ({ ...s, hero_image_url: updated.hero_image_url }));
       setForm((f) => ({ ...f, hero_image_url: updated.hero_image_url }));
@@ -129,10 +137,7 @@ export default function Settings() {
       if (newFacilityImage) {
         try {
           const payload = await imagePayload(newFacilityImage);
-          await api<Facility>(`/settings/facilities/${created.id}/image`, {
-            method: 'POST',
-            body: JSON.stringify(payload),
-          });
+          await api<Facility>(`/settings/facilities/${created.id}/image`, { method: 'POST', body: JSON.stringify(payload) });
         } catch (error) {
           photoWarning = error instanceof Error ? error.message : 'Foto gagal diunggah.';
         }
@@ -157,10 +162,7 @@ export default function Settings() {
     setUploadingFacilityId(id);
     try {
       const payload = await imagePayload(file);
-      const updated = await api<Facility>(`/settings/facilities/${id}/image`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      const updated = await api<Facility>(`/settings/facilities/${id}/image`, { method: 'POST', body: JSON.stringify(payload) });
       setFacilities((items) => items.map((item) => item.id === id ? { ...item, image_url: updated.image_url } : item));
       setFMsg('Foto fasilitas berhasil diperbarui.');
     } catch (e) {
@@ -201,9 +203,11 @@ export default function Settings() {
   }
 
   async function toggleFacilityActive(f: Facility) {
+    setFMsg('');
     try {
       await api(`/settings/facilities/${f.id}/active`, { method: 'PATCH', body: JSON.stringify({ isActive: !f.is_active }) });
       await loadFacilities();
+      setFMsg(f.is_active ? 'Fasilitas disembunyikan dari landing page.' : 'Fasilitas ditampilkan di landing page.');
     } catch (e) {
       setFMsg(e instanceof Error ? e.message : 'Gagal mengubah status fasilitas');
     }
@@ -211,6 +215,7 @@ export default function Settings() {
 
   async function deleteFacility(id: number) {
     if (!confirm('Hapus fasilitas ini dari landing page?')) return;
+    setFMsg('');
     try {
       await api(`/settings/facilities/${id}`, { method: 'DELETE' });
       await loadFacilities();
@@ -225,70 +230,71 @@ export default function Settings() {
       <div>
         <small>PENGATURAN</small>
         <h1>Konten Halaman Publik</h1>
-        <p>Klik "Ubah" pada bagian yang ingin diperbarui. Hanya ADMIN yang dapat mengakses halaman ini.</p>
+        <p>Pilih bagian yang ingin diatur. Isi pengaturan baru muncul setelah tombol bagiannya dipilih.</p>
       </div>
     </header>
-    {msg && <div className="alert">{msg}</div>}
 
-    {/* Beranda / Hero */}
-    <section className="panel">
-      <div className="panel-title">
-        <div><h2>Beranda (Hero)</h2><p>{saved.hero_title}</p></div>
-        <button type="button" className={openSection === 'hero' ? 'ghost' : 'secondary'} onClick={() => toggleSection('hero')}>{openSection === 'hero' ? 'Tutup' : 'Ubah'}</button>
-      </div>
-      {openSection === 'hero' && <>
-        <div className="stack" style={{ marginBottom: 16 }}>
-          <label>Foto latar hero (JPG/PNG/WEBP, maks 5 MB)
-            {saved.hero_image_url && <div style={{ margin: '8px 0' }}><img src={assetUrl(saved.hero_image_url)} alt="Foto latar hero" style={{ width: '100%', maxWidth: 320, borderRadius: 10 }} /></div>}
-            <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingHero} onChange={(e) => void uploadHeroImage(e.target.files?.[0])} />
-          </label>
-          {uploadingHero && <small>Mengunggah foto…</small>}
-        </div>
-        <form className="form-grid" onSubmit={submit}>
-          <label>Label kecil di atas judul<input required maxLength={80} value={form.hero_eyebrow} onChange={e => setForm({ ...form, hero_eyebrow: e.target.value })} /></label>
-          <label className="span2">Judul utama (hero)<input required maxLength={200} value={form.hero_title} onChange={e => setForm({ ...form, hero_title: e.target.value })} /></label>
-          <label className="span2">Sub-judul / deskripsi singkat<textarea required rows={2} value={form.hero_subtitle} onChange={e => setForm({ ...form, hero_subtitle: e.target.value })} /></label>
-          <button className="primary span2" disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan perubahan'}</button>
-        </form>
-      </>}
+    <section className="settings-menu-grid" aria-label="Menu pengaturan landing page">
+      <button type="button" className={`settings-menu-button${openSection === 'hero' ? ' active' : ''}`} onClick={() => chooseSection('hero')}>
+        <span>01</span><div><b>Beranda</b><small>Hero, judul dan foto latar</small></div>
+      </button>
+      <button type="button" className={`settings-menu-button${openSection === 'about' ? ' active' : ''}`} onClick={() => chooseSection('about')}>
+        <span>02</span><div><b>Tentang Kami</b><small>Profil singkat klinik</small></div>
+      </button>
+      <button type="button" className={`settings-menu-button${openSection === 'contact' ? ' active' : ''}`} onClick={() => chooseSection('contact')}>
+        <span>03</span><div><b>Kontak & Footer</b><small>Telepon, alamat dan tagline</small></div>
+      </button>
+      <button type="button" className={`settings-menu-button${openSection === 'facilities' ? ' active' : ''}`} onClick={() => chooseSection('facilities')}>
+        <span>04</span><div><b>Fasilitas</b><small>Kelola fasilitas di landing page</small></div>
+      </button>
     </section>
 
-    {/* Tentang Kami */}
-    <section className="panel">
-      <div className="panel-title">
-        <div><h2>Tentang Kami</h2><p>{saved.about_title}</p></div>
-        <button type="button" className={openSection === 'about' ? 'ghost' : 'secondary'} onClick={() => toggleSection('about')}>{openSection === 'about' ? 'Tutup' : 'Ubah'}</button>
+    {msg && <div className="alert">{msg}</div>}
+
+    {openSection === 'hero' && <section className="panel settings-detail-panel">
+      <div className="panel-title"><div><h2>Beranda (Hero)</h2><p>{saved.hero_title}</p></div></div>
+      <div className="stack" style={{ marginBottom: 16 }}>
+        <label>Foto latar hero (JPG/PNG/WEBP, maks 5 MB)
+          {saved.hero_image_url && <div style={{ margin: '8px 0' }}><img src={assetUrl(saved.hero_image_url)} alt="Foto latar hero" style={{ width: '100%', maxWidth: 320, borderRadius: 10 }} /></div>}
+          <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingHero} onChange={(e) => void uploadHeroImage(e.target.files?.[0])} />
+        </label>
+        {uploadingHero && <small>Mengunggah foto…</small>}
       </div>
-      {openSection === 'about' && <form className="form-grid" onSubmit={submit}>
+      <form className="form-grid" onSubmit={submit}>
+        <label>Label kecil di atas judul<input required maxLength={80} value={form.hero_eyebrow} onChange={e => setForm({ ...form, hero_eyebrow: e.target.value })} /></label>
+        <label className="span2">Judul utama (hero)<input required maxLength={200} value={form.hero_title} onChange={e => setForm({ ...form, hero_title: e.target.value })} /></label>
+        <label className="span2">Sub-judul / deskripsi singkat<textarea required rows={2} value={form.hero_subtitle} onChange={e => setForm({ ...form, hero_subtitle: e.target.value })} /></label>
+        <button className="primary span2" disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan perubahan'}</button>
+      </form>
+    </section>}
+
+    {openSection === 'about' && <section className="panel settings-detail-panel">
+      <div className="panel-title"><div><h2>Tentang Kami</h2><p>{saved.about_title}</p></div></div>
+      <form className="form-grid" onSubmit={submit}>
         <label className="span2">Judul bagian "Tentang Kami"<input required maxLength={150} value={form.about_title} onChange={e => setForm({ ...form, about_title: e.target.value })} /></label>
         <label className="span2">Isi "Tentang Kami"<textarea required rows={4} value={form.about_content} onChange={e => setForm({ ...form, about_content: e.target.value })} /></label>
         <button className="primary span2" disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan perubahan'}</button>
-      </form>}
-    </section>
+      </form>
+    </section>}
 
-    {/* Kontak & Footer */}
-    <section className="panel">
-      <div className="panel-title">
-        <div><h2>Kontak &amp; Footer</h2><p>{saved.contact_phone}</p></div>
-        <button type="button" className={openSection === 'contact' ? 'ghost' : 'secondary'} onClick={() => toggleSection('contact')}>{openSection === 'contact' ? 'Tutup' : 'Ubah'}</button>
-      </div>
-      {openSection === 'contact' && <form className="form-grid" onSubmit={submit}>
+    {openSection === 'contact' && <section className="panel settings-detail-panel">
+      <div className="panel-title"><div><h2>Kontak &amp; Footer</h2><p>{saved.contact_phone}</p></div></div>
+      <form className="form-grid" onSubmit={submit}>
         <label>No. telepon kontak<input required value={form.contact_phone} onChange={e => setForm({ ...form, contact_phone: e.target.value })} /></label>
         <label>Alamat (opsional)<input value={form.contact_address ?? ''} onChange={e => setForm({ ...form, contact_address: e.target.value })} /></label>
         <label className="span2">Tagline footer<input required maxLength={200} value={form.footer_tagline} onChange={e => setForm({ ...form, footer_tagline: e.target.value })} /></label>
         <button className="primary span2" disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan perubahan'}</button>
-      </form>}
-    </section>
+      </form>
+    </section>}
 
-    {/* Fasilitas */}
-    <section className="panel">
+    {openSection === 'facilities' && <section className="panel settings-detail-panel">
       <div className="panel-title">
-        <div><h2>Fasilitas</h2><p>Tampil sebagai halaman tersendiri, dapat diakses lewat menu "Fasilitas" di navbar publik.</p></div>
-        <button type="button" className={showAddFacility ? 'ghost' : 'secondary'} onClick={() => setShowAddFacility((v) => !v)}>{showAddFacility ? 'Tutup' : '+ Tambah fasilitas'}</button>
+        <div><h2>Fasilitas</h2><p>Fasilitas aktif tampil langsung sebagai bagian dari landing page BIM CLINICS.</p></div>
+        <button type="button" className={showAddFacility ? 'ghost' : 'secondary'} onClick={() => setShowAddFacility((v) => !v)}>{showAddFacility ? 'Tutup form' : '+ Tambah fasilitas'}</button>
       </div>
       {fMsg && <div className="alert">{fMsg}</div>}
 
-      {showAddFacility && <form className="form-grid" onSubmit={addFacility} style={{ marginBottom: 18 }}>
+      {showAddFacility && <form className="form-grid facility-add-form" onSubmit={addFacility}>
         <label>Nama fasilitas<input required maxLength={150} value={newFacility.title} onChange={e => setNewFacility({ ...newFacility, title: e.target.value })} /></label>
         <label>Urutan tampil<input type="number" min={0} value={newFacility.sortOrder} onChange={e => setNewFacility({ ...newFacility, sortOrder: Number(e.target.value) })} /></label>
         <label className="span2">Deskripsi singkat<textarea rows={2} value={newFacility.description} onChange={e => setNewFacility({ ...newFacility, description: e.target.value })} /></label>
@@ -298,43 +304,35 @@ export default function Settings() {
         <button className="primary span2" disabled={uploadingFacilityId === 'new'}>{uploadingFacilityId === 'new' ? 'Menyimpan…' : 'Simpan fasilitas baru'}</button>
       </form>}
 
-      {facilities.length === 0 ? <div className="empty">Belum ada fasilitas ditambahkan.</div> : <div className="stack">
-        {facilities.map((f) => (
-          <div className="document-card" key={f.id}>
-            {editingFacilityId === f.id ? (
-              <>
-                <div className="form-grid">
-                  <label>Nama fasilitas<input value={f.title} onChange={e => setFacilities(facilities.map((x) => x.id === f.id ? { ...x, title: e.target.value } : x))} /></label>
-                  <label>Urutan tampil<input type="number" min={0} value={f.sort_order} onChange={e => setFacilities(facilities.map((x) => x.id === f.id ? { ...x, sort_order: Number(e.target.value) } : x))} /></label>
-                  <label className="span2">Deskripsi singkat<textarea rows={2} value={f.description ?? ''} onChange={e => setFacilities(facilities.map((x) => x.id === f.id ? { ...x, description: e.target.value } : x))} /></label>
-                  <label className="span2">Foto fasilitas (JPG/PNG/WEBP, maks 5 MB)
-                    {f.image_url && <div className="facility-admin-preview"><img src={assetUrl(f.image_url)} alt={f.title} /></div>}
-                    <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingFacilityId === f.id} onChange={(e) => void uploadFacilityImage(f.id, e.target.files?.[0])} />
-                  </label>
-                </div>
-                <div className="actions">
-                  <button type="button" className="primary" onClick={() => saveFacility(f)}>Simpan</button>
-                  {f.image_url && <button type="button" className="ghost" disabled={uploadingFacilityId === f.id} onClick={() => void removeFacilityImage(f.id)}>Hapus foto</button>}
-                  <button type="button" className="ghost" onClick={() => { setEditingFacilityId(null); void loadFacilities(); }}>Batal</button>
-                </div>
-              </>
-            ) : (
-              <>
-                {f.image_url && <div className="facility-admin-thumb"><img src={assetUrl(f.image_url)} alt={f.title} /></div>}
-                <div className="document-head">
-                  <div><b>{f.title}</b>{!f.is_active && <small> · disembunyikan dari landing page</small>}</div>
-                </div>
-                {f.description && <p>{f.description}</p>}
-                <div className="actions">
-                  <button type="button" className="secondary" onClick={() => setEditingFacilityId(f.id)}>Ubah</button>
-                  <button type="button" className="ghost" onClick={() => toggleFacilityActive(f)}>{f.is_active ? 'Sembunyikan' : 'Tampilkan'}</button>
-                  <button type="button" className="ghost" onClick={() => deleteFacility(f.id)}>Hapus</button>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
+      {!facilitiesLoaded ? <div className="empty">Memuat fasilitas...</div> : facilities.length === 0 ? <div className="empty">Belum ada fasilitas ditambahkan.</div> : <div className="stack">
+        {facilities.map((f) => <div className="document-card" key={f.id}>
+          {editingFacilityId === f.id ? <>
+            <div className="form-grid">
+              <label>Nama fasilitas<input value={f.title} onChange={e => setFacilities(facilities.map((x) => x.id === f.id ? { ...x, title: e.target.value } : x))} /></label>
+              <label>Urutan tampil<input type="number" min={0} value={f.sort_order} onChange={e => setFacilities(facilities.map((x) => x.id === f.id ? { ...x, sort_order: Number(e.target.value) } : x))} /></label>
+              <label className="span2">Deskripsi singkat<textarea rows={2} value={f.description ?? ''} onChange={e => setFacilities(facilities.map((x) => x.id === f.id ? { ...x, description: e.target.value } : x))} /></label>
+              <label className="span2">Foto fasilitas (JPG/PNG/WEBP, maks 5 MB)
+                {f.image_url && <div className="facility-admin-preview"><img src={assetUrl(f.image_url)} alt={f.title} /></div>}
+                <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingFacilityId === f.id} onChange={(e) => void uploadFacilityImage(f.id, e.target.files?.[0])} />
+              </label>
+            </div>
+            <div className="actions">
+              <button type="button" className="primary" onClick={() => void saveFacility(f)}>Simpan</button>
+              {f.image_url && <button type="button" className="ghost" disabled={uploadingFacilityId === f.id} onClick={() => void removeFacilityImage(f.id)}>Hapus foto</button>}
+              <button type="button" className="ghost" onClick={() => { setEditingFacilityId(null); void loadFacilities(); }}>Batal</button>
+            </div>
+          </> : <>
+            {f.image_url && <div className="facility-admin-thumb"><img src={assetUrl(f.image_url)} alt={f.title} /></div>}
+            <div className="document-head"><div><b>{f.title}</b><small>Urutan {f.sort_order}{!f.is_active ? ' · disembunyikan dari landing page' : ' · tampil di landing page'}</small></div></div>
+            {f.description && <p>{f.description}</p>}
+            <div className="actions">
+              <button type="button" className="secondary" onClick={() => setEditingFacilityId(f.id)}>Ubah</button>
+              <button type="button" className="ghost" onClick={() => void toggleFacilityActive(f)}>{f.is_active ? 'Sembunyikan' : 'Tampilkan'}</button>
+              <button type="button" className="ghost" onClick={() => void deleteFacility(f.id)}>Hapus</button>
+            </div>
+          </>}
+        </div>)}
       </div>}
-    </section>
+    </section>}
   </>;
 }

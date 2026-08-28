@@ -4,7 +4,6 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 
 import Landing from './pages/Landing';
-import Facilities from './pages/Facilities';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import HR from './pages/HR';
@@ -39,7 +38,7 @@ function AdminOnly({ children }: { children: ReactElement }) {
  *
  * Hanya:
  * /
- * /fasilitas
+ * /fasilitas -> redirect ke section Fasilitas di landing page
  * /verify/:token
  *
  * /login, /dashboard, /hr, dll tidak tersedia.
@@ -49,10 +48,7 @@ function PublicRoutes() {
     <Routes>
       <Route path="/" element={<Landing />} />
 
-      <Route
-        path="/fasilitas"
-        element={<Facilities />}
-      />
+      <Route path="/fasilitas" element={<Navigate to="/#facilities" replace />} />
 
       <Route
         path="/verify/:token"
@@ -195,7 +191,7 @@ export default function App() {
     <Routes>
 
       <Route path="/" element={<Landing />} />
-      <Route path="/fasilitas" element={<Facilities />} />
+      <Route path="/fasilitas" element={<Navigate to="/#facilities" replace />} />
       <Route path="/verify/:token" element={<VerifyDocument />} />
       <Route path="/login" element={<Login />} />
 
