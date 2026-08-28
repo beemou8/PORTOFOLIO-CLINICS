@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import path from 'path';
 import 'dotenv/config';
 import { pool } from './config/db.js';
 import { authRouter } from './routes/auth.js';
@@ -74,6 +75,15 @@ app.use('/api/admin', adminRouter);
 app.use('/api/verification', verificationRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/dashboard', dashboardRouter);
+
+// Serve frontend React yang sudah di-build (web/dist)
+const webDistPath = path.resolve(process.cwd(), 'web/dist');
+app.use(express.static(webDistPath));
+
+// SPA fallback: semua route selain /api dan /uploads diarahkan ke index.html
+app.get(/^(?!\/api|\/uploads).*/, (_req, res) => {
+  res.sendFile(path.join(webDistPath, 'index.html'));
+});
 
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
