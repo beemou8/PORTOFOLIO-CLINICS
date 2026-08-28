@@ -16,19 +16,18 @@ services:
 
       # DOMAIN PUBLIC
       - "traefik.http.routers.bim-clinics-public.rule=Host(`clinics.bimoporto.my.id`)"
-      - "traefik.http.routers.bim-clinics-public.entrypoints=websecure"
+      - "traefik.http.routers.bim-clinics-public.entrypoints=https"
       - "traefik.http.routers.bim-clinics-public.tls=true"
       - "traefik.http.routers.bim-clinics-public.tls.certresolver=letsencrypt"
       - "traefik.http.routers.bim-clinics-public.service=bim-clinics-service"
 
       # DOMAIN STAFF
       - "traefik.http.routers.bim-clinics-staff.rule=Host(`staff.clinics.bimoporto.my.id`)"
-      - "traefik.http.routers.bim-clinics-staff.entrypoints=websecure"
+      - "traefik.http.routers.bim-clinics-staff.entrypoints=https"
       - "traefik.http.routers.bim-clinics-staff.tls=true"
       - "traefik.http.routers.bim-clinics-staff.tls.certresolver=letsencrypt"
       - "traefik.http.routers.bim-clinics-staff.service=bim-clinics-service"
 
-      # Keduanya menuju container yang sama
       - "traefik.http.services.bim-clinics-service.loadbalancer.server.port=3000"
 
     networks:
